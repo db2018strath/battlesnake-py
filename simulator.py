@@ -9,6 +9,9 @@ class Position:
 
 Direction = Position
 
+def distance(p1: Position, p2: Position):
+  return abs(p1.x - p2.x) + abs(p1.y - p2.y)
+
 UP    = Direction( 0,  1)
 DOWN  = Direction( 0, -1)
 LEFT  = Direction(-1,  0)
@@ -75,7 +78,7 @@ class BoardState:
                 cell = ""
                 for i in range(len(self.snakes)):
                     if pos == self.snakes[i].head:
-                        cell = "H"
+                        cell = "H" if self.snakes[i].alive else "D"
                         break
                     elif pos in self.snakes[i].tail:
                         cell = str(i)
@@ -186,6 +189,9 @@ class BoardState:
     # Returns the winner of the game if the game has ended (or None on a draw).
     # If the game has not ended then -1 is returned
     def winner(self):
+        if len(self.snakes) == 1:
+          return -1 if self.snakes[0].alive else None
+          
         winner = None
         aliveCount = 0
         for i in range(len(self.snakes)):
