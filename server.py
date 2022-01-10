@@ -24,10 +24,10 @@ def handle_info():
     print("INFO")
     return {
         "apiversion": "1",
-        "author": "",  # TODO: Your Battlesnake Username
-        "color": "#888888",  # TODO: Personalize
-        "head": "default",  # TODO: Personalize
-        "tail": "default",  # TODO: Personalize
+        "author": "db3005",
+        "color": "#0000FF",
+        "head": "pixel",
+        "tail": "pixel",
     }
 
 
@@ -51,7 +51,6 @@ def handle_move():
     """
     data = request.get_json()
 
-    # TODO - look at the server_logic.py file to see how we decide what move to return!
     move = server_logic.choose_move(data)
 
     return {"move": move}

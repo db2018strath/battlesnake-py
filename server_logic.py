@@ -1,4 +1,5 @@
 import random
+import math
 from typing import List, Dict
 
 """
@@ -8,6 +9,17 @@ We have started this for you, with a function to help remove the 'neck' directio
 from the list of possible moves!
 """
 
+def get_new_position(pos: Dict[str, int], move: str):
+  result = pos.copy()
+  if move == "left":
+    result["x"] -= 1
+  elif move == "right":
+    result["x"] += 1
+  elif move == "up":
+    result["y"] += 1
+  elif move == "down":
+    result["y"] -= 1
+  return result
 
 def avoid_my_neck(my_head: Dict[str, int], my_body: List[dict], possible_moves: List[str]) -> List[str]:
     """
@@ -33,6 +45,35 @@ def avoid_my_neck(my_head: Dict[str, int], my_body: List[dict], possible_moves: 
 
     return possible_moves
 
+def check_in_bounds(pos: Dict[str, int], w: int, h: int) -> bool:
+  x, y = pos["x"], pos["y"]
+  return (x >= 0 and x < w) and (y >= 0 and y < h)
+
+def avoid_oob(pos: Dict[str, int], w: int, h: int, possible_moves: List[str]) -> List[str]:
+  return list(filter(lambda m : check_in_bounds(get_new_position(pos, m), w, h), possible_moves))
+
+def avoid_body(pos, body, possible_moves):
+  return list(filter(lambda m : get_new_position(pos, m) not in body, possible_moves))
+
+def avoid_snakes(pos, snakes, possible_moves):
+  result = possible_moves[:]
+  for snake in snakes:
+    body = snake["body"]
+    result = list(filter(lambda m : get_new_position(pos, m) not in body, possible_moves))
+  return result
+
+def distance(p1, p2):
+  return abs(p1["x"] - p2["x"]) + abs(p1["y"] - p2["y"])
+
+def find_closest_food(pos, foods):
+  closest_distance = math.inf
+  closest_food = None
+  for food in foods:
+    dist = distance(pos, food)
+    if dist < closest_distance:
+      closest_distance = dist
+      closest_food = food
+  return (closest_distance, closest_food)
 
 def choose_move(data: dict) -> str:
     """
@@ -49,30 +90,37 @@ def choose_move(data: dict) -> str:
     my_head = data["you"]["head"]  # A dictionary of x/y coordinates like {"x": 0, "y": 0}
     my_body = data["you"]["body"]  # A list of x/y coordinate dictionaries like [ {"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 2, "y": 0} ]
 
-    # TODO: uncomment the lines below so you can see what this data looks like in your output!
-    # print(f"~~~ Turn: {data['turn']}  Game Mode: {data['game']['ruleset']['name']} ~~~")
-    # print(f"All board data this turn: {data}")
-    # print(f"My Battlesnakes head this turn is: {my_head}")
-    # print(f"My Battlesnakes body this turn is: {my_body}")
+    print(f"~~~ Turn: {data['turn']}  Game Mode: {data['game']['ruleset']['name']} ~~~")
+    print(f"All board data this turn: {data}")
+    print(f"My Battlesnakes head this turn is: {my_head}")
+    print(f"My Battlesnakes body this turn is: {my_body}")
 
     possible_moves = ["up", "down", "left", "right"]
 
     # Don't allow your Battlesnake to move back in on it's own neck
     possible_moves = avoid_my_neck(my_head, my_body, possible_moves)
 
-    # TODO: Using information from 'data', find the edges of the board and don't let your Battlesnake move beyond them
-    # board_height = ?
-    # board_width = ?
+    board_height = data["board"]["height"]
+    board_width = data["board"]["width"]
+    
+    possible_moves = avoid_oob(my_head, board_width, board_height,possible_moves)
 
-    # TODO Using information from 'data', don't let your Battlesnake pick a move that would hit its own body
+    possible_moves = avoid_body(my_head, my_body, possible_moves)
 
-    # TODO: Using information from 'data', don't let your Battlesnake pick a move that would collide with another Battlesnake
+    possible_moves = avoid_snakes(my_head, data["board"]["snakes"], possible_moves)
 
-    # TODO: Using information from 'data', make your Battlesnake move towards a piece of food on the board
+    if possible_moves == []:
+      move = "up"
+    else:
+      #move = random.choice(possible_moves)
+      (d, food) = find_closest_food(my_head, data["board"]["food"])
+      move = possible_moves[0]
+      for m in possible_moves:
+        d2 = distance(get_new_position(my_head, m), food)
+        if d2 < d:
+          move = m
+          break
 
-    # Choose a random direction from the remaining possible_moves to move in, and then return that move
-    move = random.choice(possible_moves)
-    # TODO: Explore new strategies for picking a move that are better than random
 
     print(f"{data['game']['id']} MOVE {data['turn']}: {move} picked from all valid options in {possible_moves}")
 
