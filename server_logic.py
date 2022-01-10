@@ -2,6 +2,8 @@ import random
 import math
 from typing import List, Dict
 
+import simulator as sim
+
 """
 This file can be a nice home for your move logic, and to write helper functions.
 
@@ -75,6 +77,27 @@ def find_closest_food(pos, foods):
       closest_food = food
   return (closest_distance, closest_food)
 
+def convert_to_position(p, h):
+  return sim.Position(p["x"], h - 1 - p["y"]) # y is flipped to make +y down
+
+def convert_board(data: dict) -> sim.BoardState:
+  w = data["board"]["width"]
+  h = data["board"]["height"]
+
+  snakes = []
+  for snake in data["board"]["snakes"]:
+    head = convert_to_position(snake["head"], h)
+    tail = [convert_to_position(p, h) for p in snake["body"]][1:] # body includes head so ignore first element
+    health = snake["health"]
+    snakes.append(sim.Snake(head, tail, health))
+
+  food = set([convert_to_position(f, h) for f in data["board"]["food"]])
+  minFood = 3 # TODO: change
+  foodSpawnChance = 20 # TODO: change
+    
+  return sim.BoardState(w, h, snakes, food, minFood, foodSpawnChance)
+
+
 def choose_move(data: dict) -> str:
     """
     data: Dictionary of all Game Board data as received from the Battlesnake Engine.
@@ -90,10 +113,10 @@ def choose_move(data: dict) -> str:
     my_head = data["you"]["head"]  # A dictionary of x/y coordinates like {"x": 0, "y": 0}
     my_body = data["you"]["body"]  # A list of x/y coordinate dictionaries like [ {"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 2, "y": 0} ]
 
-    print(f"~~~ Turn: {data['turn']}  Game Mode: {data['game']['ruleset']['name']} ~~~")
-    print(f"All board data this turn: {data}")
-    print(f"My Battlesnakes head this turn is: {my_head}")
-    print(f"My Battlesnakes body this turn is: {my_body}")
+    #print(f"~~~ Turn: {data['turn']}  Game Mode: {data['game']['ruleset']['name']} ~~~")
+    #print(f"All board data this turn: {data}")
+    #print(f"My Battlesnakes head this turn is: {my_head}")
+    #print(f"My Battlesnakes body this turn is: {my_body}")
 
     possible_moves = ["up", "down", "left", "right"]
 
@@ -121,7 +144,7 @@ def choose_move(data: dict) -> str:
           move = m
           break
 
-
+    print(convert_board(data))
     print(f"{data['game']['id']} MOVE {data['turn']}: {move} picked from all valid options in {possible_moves}")
 
     return move

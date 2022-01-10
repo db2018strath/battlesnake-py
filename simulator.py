@@ -19,12 +19,16 @@ MOVES = [UP, DOWN, LEFT, RIGHT]
 
 SNAKE_MAX_HEALTH = 100
 
+# Values obtained from: https://github.com/BattlesnakeOfficial/rules/blob/main/cli/commands/play.go
+DEFAULT_FOOD_SPAWN_CHANCE=15
+DEFAULT_MIN_FOOD=1
+
 # Class for storing information about a snake
 class Snake:
-    def __init__(self, head: Position, tail: List[Position]):
+    def __init__(self, head: Position, tail: List[Position], health=SNAKE_MAX_HEALTH):
         self.head = head
         self.tail = tail
-        self.health = SNAKE_MAX_HEALTH
+        self.health = health
         self.alive = True
 
     def length(self):
@@ -50,7 +54,7 @@ class Snake:
 
 # Class for storing the current state of the board
 class BoardState:
-    def __init__(self, w: int, h: int, snakes: List[Snake], food: Set[Position], minFood: int, foodSpawnChance: int):
+    def __init__(self, w: int, h: int, snakes: List[Snake], food: Set[Position], minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
         self.w = w
         self.h = h
         self.snakes = snakes
@@ -195,7 +199,7 @@ class BoardState:
         return winner
 
 
-def generate_board(w: int, h: int, noSnakes: int, minFood: int, foodSpawnChance: int):
+def generate_board(w: int, h: int, noSnakes: int, minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
     SNAKE_POSITIONS = ([
         Position(1, 1),
         Position(w - 2, h - 2),

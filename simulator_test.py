@@ -1,7 +1,7 @@
 import random as rd
 import simulator as sim
 
-board = sim.generate_board(11, 11, 2, 3, 5)
+board = sim.generate_board(11, 11, 2)
 print(board)
 
 while board.winner() == -1:
