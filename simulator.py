@@ -64,11 +64,18 @@ class BoardState:
         self.food = food
         self.minFood = minFood
         self.foodSpawnChance = foodSpawnChance
+        self.turn = 0
+
+    def __hash__(self):
+        return 0 # TODO: change this
 
     def __str__(self):
         s = "DIM: " + str(self.w) + " x " + str(self.h) + "\n"
         s += "Minimum Food: " + str(self.minFood) + "\n"
         s += "Food Spawn Chance: " + str(self.foodSpawnChance) + "%\n"
+        s += "Turn: " + str(self.turn) + "\n"
+        for i in range(len(self.snakes)):
+            s += "Health P" + str(i) + ": " + str(self.snakes[i].health) + "\n"
 
         s += ('# ' * (self.w + 2)) + "\n# "
         for y in range(self.h):
@@ -77,12 +84,13 @@ class BoardState:
 
                 cell = ""
                 for i in range(len(self.snakes)):
-                    if pos == self.snakes[i].head:
-                        cell = "H" if self.snakes[i].alive else "D"
-                        break
-                    elif pos in self.snakes[i].tail:
-                        cell = str(i)
-                        break
+                    if self.snakes[i].alive:
+                        if pos == self.snakes[i].head:
+                            cell = "H"
+                            break
+                        elif pos in self.snakes[i].tail:
+                            cell = str(i)
+                            break
                 
                 if cell == "":
                     if pos in self.food:
@@ -185,6 +193,8 @@ class BoardState:
         self.feed_snakes()
         self.spawn_food()
         self.eliminate_snakes()
+
+        self.turn += 1
 
     # Returns the winner of the game if the game has ended (or None on a draw).
     # If the game has not ended then -1 is returned
