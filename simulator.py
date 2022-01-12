@@ -1,6 +1,6 @@
 import random as rd
 from dataclasses import dataclass
-from typing import List, Set
+from typing import List, Set, Dict
 
 @dataclass(frozen=True)
 class Position:
@@ -32,14 +32,12 @@ class Snake:
         self.head = head
         self.tail = tail
         self.health = health
-        self.alive = True
 
     def __eq__(self, other):
         return (
             (self.head == other.head) and
             (self.tail == other.tail) and
-            (self.health == other.health) and
-            (self.alive == other.alive)
+            (self.health == other.health)
         )
 
 
@@ -66,7 +64,7 @@ class Snake:
 
 # Class for storing the current state of the board
 class BoardState:
-    def __init__(self, w: int, h: int, snakes: List[Snake], food: Set[Position], minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
+    def __init__(self, w: int, h: int, snakes: Dict[object, Snake], food: Set[Position], minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
         self.w = w
         self.h = h
         self.snakes = snakes
@@ -91,8 +89,8 @@ class BoardState:
         s = "DIM: " + str(self.w) + " x " + str(self.h) + "\n"
         s += "Minimum Food: " + str(self.minFood) + "\n"
         s += "Food Spawn Chance: " + str(self.foodSpawnChance) + "%\n"
-        for i in range(len(self.snakes)):
-            s += "Health P" + str(i) + ": " + str(self.snakes[i].health) + "\n"
+        for k in self.snakes:
+            s += "Health P" + str(k) + ": " + str(self.snakes[k].health) + "\n"
 
         s += ('# ' * (self.w + 2)) + "\n# "
         for y in range(self.h):
@@ -100,14 +98,13 @@ class BoardState:
                 pos = Position(x, y)
 
                 cell = ""
-                for i in range(len(self.snakes)):
-                    if self.snakes[i].alive:
-                        if pos == self.snakes[i].head:
-                            cell = "H"
-                            break
-                        elif pos in self.snakes[i].tail:
-                            cell = str(i)
-                            break
+                for k in self.snakes:
+                    if pos == self.snakes[k].head:
+                        cell = "H"
+                        break
+                    elif pos in self.snakes[k].tail:
+                        cell = str(k)[0]
+                        break
                 
                 if cell == "":
                     if pos in self.food:
@@ -129,13 +126,12 @@ class BoardState:
     # from the board and the snake's health is reset, otherwise the snake loses the end of its tail.
     def feed_snakes(self):
         eatenFood = set()
-        for i in range(len(self.snakes)):
-            if self.snakes[i].alive:
-                if self.snakes[i].head in self.food:
-                    self.snakes[i].reset_health()
-                    eatenFood.add(self.snakes[i].head)
-                else:
-                    self.snakes[i].pop_tail()
+        for k in self.snakes:
+            if self.snakes[k].head in self.food:
+                self.snakes[k].reset_health()
+                eatenFood.add(self.snakes[k].head)
+            else:
+                self.snakes[k].pop_tail()
 
         for food in eatenFood:
             self.food.remove(food)
@@ -146,7 +142,7 @@ class BoardState:
         for y in range(self.h):
             for x in range(self.w):
                 pos = Position(x, y)
-                if not any(map(lambda s: s.contains(pos), self.snakes)) and pos not in self.food:
+                if not any(map(lambda s: s.contains(pos), self.snakes.values())) and pos not in self.food:
                     emptySquares.append(pos)
 
         return emptySquares
@@ -172,40 +168,33 @@ class BoardState:
 
     def eliminate_snakes(self):
         toBeEliminated = set()
-        for i in range(len(self.snakes)):
-            if self.snakes[i].alive:
-                # Eliminate snakes that are out of bounds or have ran out of health
-                if not self.is_in_bounds(self.snakes[i].head) or self.snakes[i].health <= 0:
-                    toBeEliminated.add(i)
+        for k in self.snakes:
+            # Eliminate snakes that are out of bounds or have ran out of health
+            if not self.is_in_bounds(self.snakes[k].head) or self.snakes[k].health <= 0:
+                toBeEliminated.add(k)
 
-                # Eliminate if self intersecting
-                if self.snakes[i].head in self.snakes[i].tail:
-                    toBeEliminated.add(i)
+            # Eliminate if self intersecting
+            if self.snakes[k].head in self.snakes[k].tail:
+                toBeEliminated.add(k)
 
-                # Eliminate snakes that are colliding with another
-                for j in range(i + 1, len(self.snakes)):
-                    if self.snakes[i].head == self.snakes[j].head:
-                        li = self.snakes[i].length()
-                        lj = self.snakes[j].length()
-                        if li <= lj:
-                            toBeEliminated.add(i)
-                        if lj <= li:
-                            toBeEliminated.add(j)
-                    else:
-                        if self.snakes[i].head in self.snakes[j].tail:
-                            toBeEliminated.add(i)
-                        if self.snakes[j].head in self.snakes[i].tail:
-                            toBeEliminated.add(j)
-
-        for i in toBeEliminated:
-            self.snakes[i].alive = False
+            # Eliminate snakes that are colliding with another
+            for k2 in self.snakes:
+                if k != k2:
+                    if (self.snakes[k].head == self.snakes[k2].head and
+                        self.snakes[k].length() <= self.snakes[k2].length()):
+                    
+                        toBeEliminated.add(k)
+                    elif self.snakes[k].head in self.snakes[k2].tail:
+                        toBeEliminated.add(k)
+                            
+        for k in toBeEliminated:
+            self.snakes.pop(k)
 
 
     # Updates the board by one step using the inputs given for each snake
-    def step(self, moves: Direction):
-        for i in range(len(self.snakes)):
-            if self.snakes[i].alive:
-                self.snakes[i].move(moves[i])
+    def step(self, moves: Dict[object, Direction]):
+        for k in self.snakes:
+            self.snakes[k].move(moves[k])
 
         self.feed_snakes()
         self.spawn_food()
@@ -214,20 +203,12 @@ class BoardState:
     # Returns the winner of the game if the game has ended (or None on a draw).
     # If the game has not ended then -1 is returned
     def winner(self):
-        if len(self.snakes) == 1:
-          return -1 if self.snakes[0].alive else None
-          
-        winner = None
-        aliveCount = 0
-        for i in range(len(self.snakes)):
-            if self.snakes[i].alive:
-                if aliveCount == 0:
-                    winner = i
-                    aliveCount += 1
-                else:
-                    return -1
-
-        return winner
+        if len(self.snakes) > 1:
+            return -1
+        elif len(self.snakes) == 1:
+            return list(self.snakes.keys())[0]
+        else:
+            return None
 
 
 def generate_board(w: int, h: int, noSnakes: int, minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
@@ -243,7 +224,7 @@ def generate_board(w: int, h: int, noSnakes: int, minFood=DEFAULT_MIN_FOOD, food
 
     possible_snakes = list(map(lambda p: Snake(p, [p] * 2), SNAKE_POSITIONS))
     rd.shuffle(possible_snakes)
-    snakes = possible_snakes[:noSnakes]
+    snakes = {i: possible_snakes[i] for i in range(noSnakes)}
 
     possible_food = [Position(x, y) for x in range(w) for y in range(h) if Position(x, y) not in SNAKE_POSITIONS]
     rd.shuffle(possible_food)

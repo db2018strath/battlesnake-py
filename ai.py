@@ -23,7 +23,7 @@ def avoid_snakes(board: sim.BoardState, possibleMoves: List[sim.Direction], head
   newPossibleMoves = set()
   for move in possibleMoves:
     newPos = sim.Position(head.x + move.x, head.y + move.y)
-    for snake in board.snakes:
+    for snake in board.snakes.values():
       if snake.contains(newPos):
         break
     else:
@@ -35,7 +35,7 @@ def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: List[sim.Directio
     newPossibleMoves = set()
     for move in possibleMoves:
         newPos = sim.Position(head.x + move.x, head.y + move.y)
-        if board.is_in_bounds(newPos) and not any(map(lambda s: s.contains(newPos), board.snakes)):
+        if board.is_in_bounds(newPos) and not any(map(lambda s: s.contains(newPos), board.snakes.values())):
             newPossibleMoves.add(move)
 
     return newPossibleMoves
@@ -53,10 +53,10 @@ def find_closest_food(board: sim.BoardState, pos: sim.Position):
     return closestFood
         
 
-def safe_player(board: sim.BoardState, playerIndex: int):
+def safe_player(board: sim.BoardState, playerId):
   possibleMoves = set(sim.MOVES)
 
-  head = board.snakes[playerIndex].head
+  head = board.snakes[playerId].head
   #tail = board.snakes[playerIndex].tail
 
   possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
@@ -66,10 +66,10 @@ def safe_player(board: sim.BoardState, playerIndex: int):
   else:
     return sim.UP # default to up if all moves are bad
 
-def chase_food(board: sim.BoardState, playerIndex: int):
+def chase_food(board: sim.BoardState, playerId):
     possibleMoves = set(sim.MOVES)
     
-    head = board.snakes[playerIndex].head
+    head = board.snakes[playerId].head
     
     possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
     
@@ -103,95 +103,114 @@ class RewardInfo:
 @dataclass
 class Node:
     visitCount: int
-    rewardInfo: List[Dict[sim.Direction, RewardInfo]]
+    rewardInfo: Dict[object, Dict[sim.Direction, RewardInfo]]
 
 Tree = Dict[sim.BoardState, Node]
-    
-def generate_safe_move_matrix(board: sim.BoardState):
-    return itertools.product(*[avoid_oob_and_snakes(board, sim.MOVES, snake.head) for snake in board.snakes])
 
-def apply_action(s: sim.BoardState, actions: List[sim.Direction]):
-    sNew = copy.deepcopy(s)
-    sNew.step(actions)
-    return sNew
-
-def get_unselected_action_matrix(nodes: Tree, s: sim.BoardState):
-    return [ms for ms in generate_safe_move_matrix(s) if apply_action(s, ms) not in nodes]
-
-def choose_unselected_action(nodes: Tree, s: sim.BoardState):
-    actions = get_unselected_action_matrix(nodes, s)
-    return actions[rd.randrange(len(actions))]
+def get_reward(winner, snake):
+    if snake == winner:
+        return 1.0
+    elif winner == None:
+        return 0.0
+    else:
+        return -1.0
 
 def evaluate_state(s: sim.BoardState):
-    rewards = []
     winner = s.winner()
-    for i in range(len(s.snakes)):
-        if winner == i:
-            rewards.append(1)
-        elif winner == None:
-            rewards.append(0)
-        else:
-            rewards.append(-1)
+    return {k: get_reward(winner, k) for k in s.snakes}
 
-    return rewards
+def get_safe_actions(s: sim.BoardState, k):
+    return avoid_oob_and_snakes(s, sim.MOVES, s.snakes[k].head)
+    
+
+def get_all_matrices(possibleMoves: Dict[object, List[sim.Direction]]):
+    pmoves = copy.deepcopy(possibleMoves)
+    
+    if not pmoves:
+        return {}
+    elif len(pmoves) == 1:
+        return [{k: m} for k in pmoves for m in pmoves[k]]
+    else:
+        (k, ms) = pmoves.popitem()
+        rest = get_all_matrices(pmoves)
+        
+        result = []
+        for d in rest:
+            for m in ms:
+                newDict = copy.deepcopy(d)
+                newDict[k] = m
+                result.append(newDict)
+            
+        return result
+        
+        
+def get_unselected_action_matrices(nodes: Tree, s: sim.BoardState):
+    possibleActions = {}
+    for k in s.snakes:
+        actions = get_safe_actions(s, k)
+        if actions:
+            possibleActions[k] = actions
+        else:
+            possibleActions[k] = [sim.UP]
+            
+    return get_all_matrices(possibleActions)
+
+
+def apply_action(s: sim.BoardState, a: Dict[object, sim.Direction]):
+    sNew = copy.deepcopy(s)
+    sNew.step(a)
+    return sNew
 
 def add_node(nodes: Tree, s: sim.BoardState):
-    nodes[s] = Node(0, [
-            {
-                sim.UP: RewardInfo(0, 0),
-                sim.DOWN: RewardInfo(0, 0),
-                sim.LEFT: RewardInfo(0, 0),
-                sim.RIGHT: RewardInfo(0, 0)
-            } 
-            for _ in s.snakes]
-        )
-
+    nodes[s] = Node(0, {k: {m: RewardInfo(0, 0) for m in sim.MOVES} for k in s.snakes})
+    
 def mcts_playout(s: sim.BoardState):
-    state = copy.deepcopy(s)
-    while state.winner() == -1:
-        state.step([simple_player(s, i) for i in range(len(s.snakes))])
+    sCopy = copy.deepcopy(s)
+    while sCopy.winner() == -1:
+        sCopy.step({k: simple_player(sCopy, k) for k in sCopy.snakes})
+        
+    return {k: get_reward(sCopy.winner(), k) for k in s.snakes}
 
-    return evaluate_state(state)
-
-
-def update_node(nodes: Tree, s: sim.BoardState, actions: List[sim.Direction], rs: List[int]):
-    for i in range(len(s.snakes)):
-        nodes[s].rewardInfo[i][actions[i]].totalReward += rs[i]
-        nodes[s].rewardInfo[i][actions[i]].visitCount += 1
+def update_node(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.Direction], rs):
+    for k in actions:
+        a = actions[k]
+        nodes[s].rewardInfo[k][a].totalReward += rs.get(k, -1.0)
+        nodes[s].rewardInfo[k][a].visitCount += 1
     nodes[s].visitCount += 1
-
-def ucb_duct(tR: int, n: int, n_a: int, c=1):
+    
+def ucb_duct(tR: int, n: int, n_a: int, c=1.0):
   if n_a == 0:
     return math.inf
   else:
     return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
-
-def select_action(nodes: Tree, s: sim.BoardState):
-    actionMatrix = []
-    for i in range(len(s.snakes)):
-        bestMove = sim.MOVES[0]
-        bestMoveUCB = -math.inf
-        for m in sim.MOVES:
-            rewardInfo = nodes[s].rewardInfo[i][m]
+    
+def select_actions(nodes: Tree, s: sim.BoardState):
+    result = {}
+    for k in s.snakes:
+        bestAction = sim.UP
+        bestActionUCB = -math.inf
+        for a in get_safe_actions(s, k):
+            rewardInfo = nodes[s].rewardInfo[k][a]
             tR = rewardInfo.totalReward
-            n_a = rewardInfo.visitCount
+            nA = rewardInfo.visitCount
             n = nodes[s].visitCount
-
-            ucb = ucb_duct(tR, n, n_a)
-            if ucb > bestMoveUCB:
-                bestMoveUCB = ucb
-                bestMove = m
-
-        actionMatrix.append(bestMove)
-
-    return actionMatrix
-
+            
+            ucb = ucb_duct(tR, n, nA)
+            if ucb > bestActionUCB:
+                bestAction = a
+                bestActionUCB = ucb
+        
+        result[k] = bestAction
+        
+    return result
+            
+            
 
 def mcts_iter(nodes: Tree, s: sim.BoardState):
     if s.winner() != -1: # if in a terminal state
         return evaluate_state(s)
-    elif s in nodes and len(get_unselected_action_matrix(nodes, s)) != 0:
-        a = choose_unselected_action(nodes, s)
+    elif s in nodes and (actionMats := get_unselected_action_matrices(nodes, s)):
+        a = actionMats[rd.randrange(len(actionMats))]
 
         # Calculate next state
         sNew = apply_action(s, a)
@@ -207,10 +226,10 @@ def mcts_iter(nodes: Tree, s: sim.BoardState):
         return rs
 
     else: # selection phase
-        a = select_action(nodes, s)
-        sNew = apply_action(s, a)
+        actions = select_actions(nodes, s)
+        sNew = apply_action(s, actions)
         rs = mcts_iter(nodes, sNew)
-        update_node(nodes, s, a, rs)
+        update_node(nodes, s, actions, rs)
         return rs
 
 
