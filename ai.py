@@ -5,7 +5,7 @@ import random as rd
 import time
 
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Set
 
 import simulator as sim
 
@@ -19,7 +19,7 @@ def avoid_oob(board: sim.BoardState, possibleMoves: List[sim.Direction], head: s
 
   return newPossibleMoves
 
-def avoid_snakes(board: sim.BoardState, possibleMoves: List[sim.Direction], head: sim.Position):
+def avoid_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
   newPossibleMoves = set()
   for move in possibleMoves:
     newPos = sim.Position(head.x + move.x, head.y + move.y)
@@ -31,7 +31,7 @@ def avoid_snakes(board: sim.BoardState, possibleMoves: List[sim.Direction], head
   
   return newPossibleMoves
 
-def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: List[sim.Direction], head: sim.Position):
+def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
     newPossibleMoves = set()
     for move in possibleMoves:
         newPos = sim.Position(head.x + move.x, head.y + move.y)
@@ -271,4 +271,5 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
                 bestMove = m
                 bestMoveReward = x
 
+    print(len(nodes))
     return bestMove

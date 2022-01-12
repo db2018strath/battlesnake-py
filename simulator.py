@@ -139,24 +139,20 @@ class BoardState:
 
     # Returns a list of all of the squares not being occupied by snakes or food
     def get_empty_squares(self):
-        emptySquares = []
-        for y in range(self.h):
-            for x in range(self.w):
-                pos = Position(x, y)
-                if not any(map(lambda s: s.contains(pos), self.snakes.values())) and pos not in self.food:
-                    emptySquares.append(pos)
+        emptySquares = {Position(x, y) for x in range(self.w) for y in range(self.h)}
+        emptySquares.difference_update(self.food)
 
-        return emptySquares
+        for snake in self.snakes.values():
+            emptySquares.discard(snake.head)
+            emptySquares.difference_update(snake.tail)
+
+        return list(emptySquares)
 
 
     # Randomly places food in an empty square
     def randomly_place_food(self, n: int):
         emptySquares = self.get_empty_squares()
-        if emptySquares:
-            rd.shuffle(emptySquares)
-            newFood = emptySquares[:n]
-            for food in newFood:
-                self.food.add(food)
+        self.food.update(rd.choices(emptySquares, k=n))
 
 
     # Adds new food to the board
@@ -233,4 +229,4 @@ def generate_board(w: int, h: int, noSnakes: int, minFood=DEFAULT_MIN_FOOD, food
     rd.shuffle(possible_food)
     food = set(possible_food[:minFood])
     
-    return BoardState(w, h, snakes, food, minFood, foodSpawnChance)
+    return BoardState(w, h, snakes, food, 0, minFood, foodSpawnChance)
