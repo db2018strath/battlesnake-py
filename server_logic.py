@@ -1,3 +1,5 @@
+import time
+
 import simulator as sim
 import ai
 
@@ -62,9 +64,15 @@ def choose_move(data: dict) -> str:
     #print(f"My Battlesnakes head this turn is: {my_head}")
     #print(f"My Battlesnakes body this turn is: {my_body}")
 
+    #print(data)
+
     snakeID = data["you"]["id"]
     (board, snakeIndex) = convert_board(data, snakeID)
-    move = convert_direction(ai.safe_player(board, snakeIndex))
+
+    t1 = time.time_ns()
+    move = convert_direction(ai.mcts_duct(board, snakeIndex, 100))
+    t2 = time.time_ns()
+    print(t2 - t1, "ns")
 
     print(board)
     print(f"{data['game']['id']} MOVE {data['turn']}: {move} picked")

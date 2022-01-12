@@ -34,6 +34,15 @@ class Snake:
         self.health = health
         self.alive = True
 
+    def __eq__(self, other):
+        return (
+            (self.head == other.head) and
+            (self.tail == other.tail) and
+            (self.health == other.health) and
+            (self.alive == other.alive)
+        )
+
+
     def length(self):
         return len(self.tail) + 1
 
@@ -64,7 +73,16 @@ class BoardState:
         self.food = food
         self.minFood = minFood
         self.foodSpawnChance = foodSpawnChance
-        self.turn = 0
+
+    def __eq__(self, other):
+        return (
+            (self.w == other.w) and
+            (self.h == other.h) and
+            (self.minFood == other.minFood) and
+            (self.foodSpawnChance == other.foodSpawnChance) and
+            (self.snakes == other.snakes) and
+            (self.food == other.food)
+        )
 
     def __hash__(self):
         return 0 # TODO: change this
@@ -73,7 +91,6 @@ class BoardState:
         s = "DIM: " + str(self.w) + " x " + str(self.h) + "\n"
         s += "Minimum Food: " + str(self.minFood) + "\n"
         s += "Food Spawn Chance: " + str(self.foodSpawnChance) + "%\n"
-        s += "Turn: " + str(self.turn) + "\n"
         for i in range(len(self.snakes)):
             s += "Health P" + str(i) + ": " + str(self.snakes[i].health) + "\n"
 
@@ -193,8 +210,6 @@ class BoardState:
         self.feed_snakes()
         self.spawn_food()
         self.eliminate_snakes()
-
-        self.turn += 1
 
     # Returns the winner of the game if the game has ended (or None on a draw).
     # If the game has not ended then -1 is returned

@@ -160,23 +160,27 @@ def update_node(nodes: Tree, s: sim.BoardState, actions: List[sim.Direction], rs
         nodes[s].rewardInfo[i][actions[i]].visitCount += 1
     nodes[s].visitCount += 1
 
+def ucb_duct(tR: int, n: int, n_a: int, c=1):
+  if n_a == 0:
+    return math.inf
+  else:
+    return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
+
 def select_action(nodes: Tree, s: sim.BoardState):
     actionMatrix = []
     for i in range(len(s.snakes)):
         bestMove = sim.MOVES[0]
         bestMoveUCB = -math.inf
         for m in sim.MOVES:
-            rewardInfo = nodes[s].rewardInfo[(i, m)]
-
+            rewardInfo = nodes[s].rewardInfo[i][m]
+            tR = rewardInfo.totalReward
             n_a = rewardInfo.visitCount
-            x = rewardInfo.totalReward / n_a
+            n = nodes[s].visitCount
 
-            c = 1 # TODO: change this
-            ucb = x + c * math.sqrt(math.log(nodes[s].visitCount) / n_a)
-
+            ucb = ucb_duct(tR, n, n_a)
             if ucb > bestMoveUCB:
-                bestMove = m
                 bestMoveUCB = ucb
+                bestMove = m
 
         actionMatrix.append(bestMove)
 
