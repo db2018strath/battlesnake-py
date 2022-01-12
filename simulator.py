@@ -64,13 +64,14 @@ class Snake:
 
 # Class for storing the current state of the board
 class BoardState:
-    def __init__(self, w: int, h: int, snakes: Dict[object, Snake], food: Set[Position], minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
+    def __init__(self, w: int, h: int, snakes: Dict[object, Snake], food: Set[Position], turn, minFood=DEFAULT_MIN_FOOD, foodSpawnChance=DEFAULT_FOOD_SPAWN_CHANCE):
         self.w = w
         self.h = h
         self.snakes = snakes
         self.food = food
         self.minFood = minFood
         self.foodSpawnChance = foodSpawnChance
+        self.turn = turn
 
     def __eq__(self, other):
         return (
@@ -199,6 +200,8 @@ class BoardState:
         self.feed_snakes()
         self.spawn_food()
         self.eliminate_snakes()
+
+        self.turn += 1
 
     # Returns the winner of the game if the game has ended (or None on a draw).
     # If the game has not ended then -1 is returned

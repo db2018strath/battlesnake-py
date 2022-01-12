@@ -86,10 +86,26 @@ def chase_food(board: sim.BoardState, playerId):
                 
     return bestMove
     
-def simple_player(board: sim.BoardState, playerIndex: int):
-    STRATEGIES = [safe_player, chase_food]
+def random_choice(xs, ps):
+    if len(xs) != len(ps):
+        return None
+
+    total = rd.random()
+    for i in range(len(xs)):
+        if total < ps[i]:
+            return xs[i]
+        
+        total += ps[i]
+
+    return xs[-1]
     
-    return STRATEGIES[rd.randrange(len(STRATEGIES))](board, playerIndex)
+
+def simple_player(board: sim.BoardState, playerId: int):
+    STRATEGIES = [safe_player, chase_food]
+    PROBABILITIES = [0.10, 0.90]
+
+    return random_choice(STRATEGIES, PROBABILITIES)(board, playerId)
+    
 
 #------------------------#
 #          MCTS          #

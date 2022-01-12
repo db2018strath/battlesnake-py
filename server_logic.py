@@ -13,25 +13,22 @@ from the list of possible moves!
 def convert_to_position(p, h):
   return sim.Position(p["x"], h - 1 - p["y"]) # y is flipped to make +y down
 
-def convert_board(data: dict, myID: str) -> (sim.BoardState, int):
+def convert_board(data: dict) -> (sim.BoardState, int):
   w = data["board"]["width"]
   h = data["board"]["height"]
 
-  mySnakeIndex = 0
-  snakes = []
+  snakes = {}
   for i in range(len(data["board"]["snakes"])):
     snake = data["board"]["snakes"][i]
-    if snake["id"] == myID:
-      mySnakeIndex = i
 
     head = convert_to_position(snake["head"], h)
     tail = [convert_to_position(p, h) for p in snake["body"]][1:] # body includes head so ignore first element
     health = snake["health"]
-    snakes.append(sim.Snake(head, tail, health))
+    snakes[snake["id"]] = sim.Snake(head, tail, health)
 
   food = set([convert_to_position(f, h) for f in data["board"]["food"]])
     
-  return (sim.BoardState(w, h, snakes, food), mySnakeIndex)
+  return sim.BoardState(w, h, snakes, food, data["turn"])
 
 def convert_direction(dir: sim.Direction):
   if dir == sim.UP:
@@ -67,10 +64,10 @@ def choose_move(data: dict) -> str:
     #print(data)
 
     snakeID = data["you"]["id"]
-    (board, snakeIndex) = convert_board(data, snakeID)
+    board = convert_board(data)
 
     t1 = time.time_ns()
-    move = convert_direction(ai.mcts_duct(board, snakeIndex, 100))
+    move = convert_direction(ai.mcts_duct(board, snakeID, 100))
     t2 = time.time_ns()
     print(t2 - t1, "ns")
 
