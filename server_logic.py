@@ -67,7 +67,7 @@ def choose_move(data: dict) -> str:
     board = convert_board(data)
 
     t1 = time.time_ns()
-    move = convert_direction(ai.mcts_duct(board, snakeID, 100))
+    move = convert_direction(ai.mcts_duct(board, snakeID, 200))
     t2 = time.time_ns()
     print(t2 - t1, "ns")
 

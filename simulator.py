@@ -58,7 +58,7 @@ class Snake:
     def contains(self, pos: Position):
         return pos == self.head or pos in self.tail
 
-    # Removes the last element of the tail
+    # Removes the oldest segment of the tail
     def pop_tail(self):
         self.tail.pop(0)
 
@@ -104,7 +104,7 @@ class BoardState:
                         cell = "H"
                         break
                     elif pos in self.snakes[k].tail:
-                        cell = str(k)[0]
+                        cell = str(k)[-1]
                         break
                 
                 if cell == "":
@@ -151,8 +151,9 @@ class BoardState:
 
     # Randomly places food in an empty square
     def randomly_place_food(self, n: int):
-        emptySquares = self.get_empty_squares()
-        self.food.update(rd.choices(emptySquares, k=n))
+        if self.foodSpawnChance != 0:
+            emptySquares = self.get_empty_squares()
+            self.food.update(rd.choices(emptySquares, k=n))
 
 
     # Adds new food to the board

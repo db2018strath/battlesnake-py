@@ -35,7 +35,9 @@ def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction
     newPossibleMoves = set()
     for move in possibleMoves:
         newPos = sim.Position(head.x + move.x, head.y + move.y)
-        if board.is_in_bounds(newPos) and not any(map(lambda s: s.contains(newPos), board.snakes.values())):
+        if (board.is_in_bounds(newPos) and
+            not any(map(lambda s: newPos == s.head or newPos in s.tail[:-1], board.snakes.values()))):
+            
             newPossibleMoves.add(move)
 
     return newPossibleMoves
@@ -67,14 +69,14 @@ def safe_player(board: sim.BoardState, playerId):
     return sim.UP # default to up if all moves are bad
 
 def chase_food(board: sim.BoardState, playerId):
-    possibleMoves = set(sim.MOVES)
-    
     head = board.snakes[playerId].head
     
-    possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
-    
     closestFood = find_closest_food(board, head)
-    
+    if closestFood == None:
+        return safe_player(board, playerId)
+ 
+    possibleMoves = avoid_oob_and_snakes(board, set(sim.MOVES), head)
+        
     bestMove = sim.UP
     bestMoveDistance = math.inf
     for move in possibleMoves:
@@ -179,13 +181,31 @@ def apply_action(s: sim.BoardState, a: Dict[object, sim.Direction]):
 
 def add_node(nodes: Tree, s: sim.BoardState):
     nodes[s] = Node(0, {k: {m: RewardInfo(0, 0) for m in sim.MOVES} for k in s.snakes})
-    
+
+def longest_snake(s: sim.BoardState):
+    index = 0
+    longest_length = s.snakes[0].length()
+    for i in range(1, len(s.snakes)):
+        new_length = s.snakes[i].length()
+        if new_length > longest_length:
+            longest_length = new_length
+            index = i
+
+    return index
+        
+
 def mcts_playout(s: sim.BoardState):
     sCopy = copy.deepcopy(s)
-    while sCopy.winner() == -1:
+    for i in range(50):
+        if sCopy.winner() != -1:
+            break
         sCopy.step({k: simple_player(sCopy, k) for k in sCopy.snakes})
-        
-    return {k: get_reward(sCopy.winner(), k) for k in s.snakes}
+
+    if sCopy.winner() != -1:
+        return {k: get_reward(sCopy.winner(), k) for k in s.snakes}
+    else:
+        longest = longest_snake(sCopy)
+        return {k: get_reward(longest, k) for k in s.snakes}
 
 def update_node(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.Direction], rs):
     for k in actions:
@@ -253,11 +273,11 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
     tStart = time.time_ns()
     
     s = copy.deepcopy(board)
-    
+    s.foodSpawnChance = 0
+
     nodes = {}
     add_node(nodes, s)
     while time.time_ns() - tStart < maxTime * 1000000:
-    #for i in range(10):
         mcts_iter(nodes, s)
 
     bestMove = sim.MOVES[0]
@@ -271,5 +291,5 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
                 bestMove = m
                 bestMoveReward = x
 
-    print(len(nodes))
+    print("Nodes Visited:", len(nodes))
     return bestMove
