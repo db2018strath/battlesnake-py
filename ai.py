@@ -133,9 +133,11 @@ def get_reward(winner, snake):
     else:
         return -1.0
 
+
 def evaluate_state(s: sim.BoardState):
     winner = s.winner()
     return {k: get_reward(winner, k) for k in s.snakes}
+
 
 def get_safe_actions(s: sim.BoardState, k):
     return avoid_oob_and_snakes(s, sim.MOVES, s.snakes[k].head)
@@ -179,8 +181,6 @@ def apply_action(s: sim.BoardState, a: Dict[object, sim.Direction]):
     sNew.step(a)
     return sNew
 
-def add_node(nodes: Tree, s: sim.BoardState):
-    nodes[s] = Node(0, {k: {m: RewardInfo(0, 0) for m in sim.MOVES} for k in s.snakes})
 
 def longest_snake(s: sim.BoardState):
     index = 0
@@ -192,9 +192,13 @@ def longest_snake(s: sim.BoardState):
             index = i
 
     return index
-        
 
-def mcts_playout(s: sim.BoardState):
+
+def add_node_duct(nodes: Tree, s: sim.BoardState):
+    nodes[s] = Node(0, {k: {m: RewardInfo(0, 0) for m in sim.MOVES} for k in s.snakes})
+
+
+def mcts_playout_duct(s: sim.BoardState):
     sCopy = copy.deepcopy(s)
     for i in range(50):
         if sCopy.winner() != -1:
@@ -207,20 +211,23 @@ def mcts_playout(s: sim.BoardState):
         longest = longest_snake(sCopy)
         return {k: get_reward(longest, k) for k in s.snakes}
 
-def update_node(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.Direction], rs):
+
+def update_node_duct(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.Direction], rs):
     for k in actions:
         a = actions[k]
         nodes[s].rewardInfo[k][a].totalReward += rs.get(k, -1.0)
         nodes[s].rewardInfo[k][a].visitCount += 1
     nodes[s].visitCount += 1
+
     
 def ucb_duct(tR: int, n: int, n_a: int, c=1.0):
   if n_a == 0:
     return math.inf
   else:
     return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
-    
-def select_actions(nodes: Tree, s: sim.BoardState):
+
+      
+def select_actions_duct(nodes: Tree, s: sim.BoardState):
     result = {}
     for k in s.snakes:
         bestAction = sim.UP
@@ -239,10 +246,9 @@ def select_actions(nodes: Tree, s: sim.BoardState):
         result[k] = bestAction
         
     return result
-            
-            
 
-def mcts_iter(nodes: Tree, s: sim.BoardState):
+    
+def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
     if s.winner() != -1: # if in a terminal state
         return evaluate_state(s)
     elif s in nodes and (actionMats := get_unselected_action_matrices(nodes, s)):
@@ -276,20 +282,50 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
     s.foodSpawnChance = 0
 
     nodes = {}
-    add_node(nodes, s)
+    add_node_duct(nodes, s)
     while time.time_ns() - tStart < maxTime * 1000000:
-        mcts_iter(nodes, s)
+        mcts_duct_iter(nodes, s)
 
     bestMove = sim.MOVES[0]
     bestMoveReward = -math.inf
     for m in sim.MOVES:
         rewardInfo = nodes[s].rewardInfo[playerIndex][m]
         if rewardInfo.visitCount != 0:
-            x = rewardInfo.totalReward / rewardInfo.visitCount
+            r = rewardInfo.totalReward / rewardInfo.visitCount
 
-            if x > bestMoveReward:
+            if r > bestMoveReward:
                 bestMove = m
-                bestMoveReward = x
+                bestMoveReward = r
 
     print("Nodes Visited:", len(nodes))
     return bestMove
+
+
+def mcts_iter_suct(nodes: Tree, playerIndex: int, s: sim.BoardState):
+    if s.winner() != -1: # if in terminal state
+        return 1 if playerIndex == s.winner() else 0
+    # TODO: finish this
+        
+
+
+def mcts_suct(board: sim.BoardState, playerIndex: int, maxTime=150):
+    tStart = time.time_ns()
+
+    s = copy.deepcopy(board)
+    s.foodSpawnChance = 0
+
+    nodes = {}
+    add_node_suct(nodes, s)
+    while time.time_ns() - tStart < maxTime * 1000000:
+        mcts_suct_iter(nodes, s)
+
+    bestMove = sim.MOVES[0]
+    bestMoveReward = -math.inf
+    for m in sim.MOVES:
+        rewardInfo = nodes[s].rewardInfo[playerIndex][m]
+        if rewardInfo.visitCount != 0:
+            r = rewardInfo.totalReward / rewardInfo.visitCount
+
+            if x > bestMoveReward:
+                bestMove = m
+                bestMoveReward = r
