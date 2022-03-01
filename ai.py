@@ -11,25 +11,25 @@ import simulator as sim
 
 # Returns possible_moves without any moves which result in the snake entering out of bounds
 def avoid_oob(board: sim.BoardState, possibleMoves: List[sim.Direction], head: sim.Position):
-  newPossibleMoves = set()
-  for move in possibleMoves:
-    newPos = sim.Position(head.x + move.x, head.y + move.y)
-    if board.is_in_bounds(newPos):
-      newPossibleMoves.add(move)
+    newPossibleMoves = set()
+    for move in possibleMoves:
+        newPos = sim.Position(head.x + move.x, head.y + move.y)
+        if board.is_in_bounds(newPos):
+            newPossibleMoves.add(move)
 
-  return newPossibleMoves
+    return newPossibleMoves
 
 def avoid_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
-  newPossibleMoves = set()
-  for move in possibleMoves:
-    newPos = sim.Position(head.x + move.x, head.y + move.y)
-    for snake in board.snakes.values():
-      if snake.contains(newPos):
-        break
-    else:
-      newPossibleMoves.add(move)
+    newPossibleMoves = set()
+    for move in possibleMoves:
+        newPos = sim.Position(head.x + move.x, head.y + move.y)
+        for snake in board.snakes.values():
+            if snake.contains(newPos):
+                break
+        else:
+            newPossibleMoves.add(move)
   
-  return newPossibleMoves
+    return newPossibleMoves
 
 def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
     newPossibleMoves = set()
@@ -56,17 +56,18 @@ def find_closest_food(board: sim.BoardState, pos: sim.Position):
         
 
 def safe_player(board: sim.BoardState, playerId):
-  possibleMoves = set(sim.MOVES)
+    possibleMoves = set(sim.MOVES)
 
-  head = board.snakes[playerId].head
-  #tail = board.snakes[playerIndex].tail
+    head = board.snakes[playerId].head
+    #tail = board.snakes[playerIndex].tail
 
-  possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
+    possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
   
-  if possibleMoves:
-    return list(possibleMoves)[rd.randrange(len(possibleMoves))]
-  else:
-    return sim.UP # default to up if all moves are bad
+    if possibleMoves:
+        return list(possibleMoves)[rd.randrange(len(possibleMoves))]
+    else:
+        return sim.UP # default to up if all moves are bad
+
 
 def chase_food(board: sim.BoardState, playerId):
     head = board.snakes[playerId].head
@@ -176,7 +177,7 @@ def get_unselected_action_matrices(nodes: Tree, s: sim.BoardState):
     return get_all_matrices(possibleActions)
 
 
-def apply_action(s: sim.BoardState, a: Dict[object, sim.Direction]):
+def apply_action_duct(s: sim.BoardState, a: Dict[object, sim.Direction]):
     sNew = copy.deepcopy(s)
     sNew.step(a)
     return sNew
@@ -198,7 +199,7 @@ def add_node_duct(nodes: Tree, s: sim.BoardState):
     nodes[s] = Node(0, {k: {m: RewardInfo(0, 0) for m in sim.MOVES} for k in s.snakes})
 
 
-def mcts_playout_duct(s: sim.BoardState):
+def mcts_playout(s: sim.BoardState):
     sCopy = copy.deepcopy(s)
     for i in range(50):
         if sCopy.winner() != -1:
@@ -255,23 +256,23 @@ def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
         a = actionMats[rd.randrange(len(actionMats))]
 
         # Calculate next state
-        sNew = apply_action(s, a)
+        sNew = apply_action_duct(s, a)
 
         # Add new state to the tree
-        add_node(nodes, sNew)
+        add_node_duct(nodes, sNew)
 
         rs = mcts_playout(sNew)
 
         nodes[sNew].visitCount += 1
 
-        update_node(nodes, s, a, rs)
+        update_node_duct(nodes, s, a, rs)
         return rs
 
     else: # selection phase
-        actions = select_actions(nodes, s)
-        sNew = apply_action(s, actions)
-        rs = mcts_iter(nodes, sNew)
-        update_node(nodes, s, actions, rs)
+        actions = select_actions_duct(nodes, s)
+        sNew = apply_action_duct(s, actions)
+        rs = mcts_duct_iter(nodes, sNew)
+        update_node_duct(nodes, s, actions, rs)
         return rs
 
 
@@ -300,32 +301,152 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
     print("Nodes Visited:", len(nodes))
     return bestMove
 
+    
+#----- SUCT -----#
 
-def mcts_iter_suct(nodes: Tree, playerIndex: int, s: sim.BoardState):
+class StateSUCT:
+    def __init__(self, state: sim.BoardState, turnOrder: List[object]):
+        self.state = state
+        self.moves = {}
+        self.turn = 0
+        self.turnOrder = turnOrder
+
+    def __hash__(self):
+        return 0 # TODO: change this
+
+    def step(self, move: sim.Direction):
+        self.moves[self.current_turn_player()] = move
+        self.turn = (self.turn + 1) % len(self.turnOrder)
+
+        if self.turn == 0:
+            self.state.step(self.moves)
+            self.moves = {}
+
+    def current_turn_player(self):
+        return self.turnOrder[self.turn]
+
+    def winner(self):
+        return self.state.winner()
+
+
+@dataclass
+class NodeSUCT:
+    visitCount: int
+    rewards: Dict[object, float]
+
+TreeSUCT = Dict[StateSUCT, NodeSUCT]
+
+
+def apply_action_suct(s: StateSUCT, a: sim.Direction):
+    sNew = copy.deepcopy(s)
+    sNew.step(a)
+    return sNew
+
+
+def get_unselected_actions(nodes: TreeSUCT, s: StateSUCT):
+    # TODO: improve this
+    possible_actions = []
+    for a in get_safe_actions(s.state, s.current_turn_player()):
+        sNew = apply_action_suct(s, a)
+
+        if sNew not in nodes:
+            possible_actions.append(sNew)
+        
+    return possible_actions
+
+
+def add_node_suct(nodes: TreeSUCT, s: StateSUCT):
+    nodes[s] = NodeSUCT(0, {k: 0 for k in s.state.snakes})
+
+def update_node_suct(nodes: TreeSUCT, s: StateSUCT, a: sim.Direction, rs):
+    for snake in s.state.snakes:
+        nodes[s].rewards[snake] += rs[snake]
+    nodes[s].visitCount += 1
+
+def ucb_suct(r, n, N, c=1.0):
+    if n == 0:
+        return math.inf
+        
+    return (r / n) + c * math.sqrt(math.log(N) / n)
+
+def select_action_suct(nodes: TreeSUCT, s: StateSUCT):
+    possible_actions = get_safe_actions(s.state, s.current_turn_player())
+    if possible_actions == []:
+        return None
+        
+    bestAction = possible_actions[0]
+    bestActionUCB = -math.inf
+    for a in possible_actions:
+        sNew = apply_action_suct(s, a)
+        r = nodes[sNew].rewards[s.current_turn_player()]
+        n = nodes[sNew].visitCount
+        N = nodes[s].visitCount
+        ucb = ucb_suct(r, n, N)
+
+        if ucb > bestActionUCB:
+            bestAction = a
+            bestActionUCB = ucb
+
+    return bestAction
+
+
+def mcts_iter_suct(nodes: TreeSUCT, s: StateSUCT):
     if s.winner() != -1: # if in terminal state
-        return 1 if playerIndex == s.winner() else 0
-    # TODO: finish this
+        return evaluate_state(s)
+    elif s in nodes and (actions := get_safe_actions(s.state, s.current_turn_player())):
+        a = list(actions)[rd.randrange(len(actions))]
+        
+        # Calculate next state
+        sNew = apply_action_suct(s, a)
+        
+        # Add new state to the tree
+        add_node_suct(nodes, sNew)
+        
+        rs = mcts_playout(sNew.state)
+        
+        nodes[sNew].visitCount += 1
+        
+        update_node_suct(nodes, s, a, rs)
+        return rs
+        
+    else: # selection phase
+        a = select_action_suct(nodes, s)
+        sNew = apply_action_suct(s, a)
+        rs = mcts_iter_suct(nodes, sNew)
+        update_node_suct(nodes, s, a, rs)
+        return rs
         
 
 
 def mcts_suct(board: sim.BoardState, playerIndex: int, maxTime=150):
     tStart = time.time_ns()
 
-    s = copy.deepcopy(board)
-    s.foodSpawnChance = 0
+    boardCopy = copy.deepcopy(board)
+    boardCopy.foodSpawnChance = 0
+
+    turnOrder = [k for k in boardCopy.snakes if k != playerIndex]
+    turnOrder.append(playerIndex)
+    
+    s = StateSUCT(boardCopy, turnOrder)
 
     nodes = {}
     add_node_suct(nodes, s)
     while time.time_ns() - tStart < maxTime * 1000000:
-        mcts_suct_iter(nodes, s)
+        mcts_iter_suct(nodes, s)
 
     bestMove = sim.MOVES[0]
     bestMoveReward = -math.inf
-    for m in sim.MOVES:
-        rewardInfo = nodes[s].rewardInfo[playerIndex][m]
-        if rewardInfo.visitCount != 0:
-            r = rewardInfo.totalReward / rewardInfo.visitCount
+    for a in sim.MOVES:
+        sNew = apply_action_suct(s, a)
+        try:
+            node = nodes[sNew]
+            r = node.rewards[playerIndex] / node.visitCount
 
-            if x > bestMoveReward:
-                bestMove = m
+            if r > bestMoveReward:
+                bestMove = a
                 bestMoveReward = r
+                
+        except:
+            pass
+
+    return bestMove

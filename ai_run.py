@@ -11,7 +11,7 @@ while board.winner() == -1:
     print(board)
 
     #print(ai.get_unselected_action_matrices({}, board))
-    board.step({k: ai.mcts_duct(board, k, 200) for k in board.snakes})
+    board.step({k: ai.mcts_suct(board, k, 200) for k in board.snakes})
 
 print(board)
 winner = board.winner()
