@@ -59,7 +59,7 @@ def safe_player(board: sim.BoardState, playerId):
     possibleMoves = set(sim.MOVES)
 
     head = board.snakes[playerId].head
-    #tail = board.snakes[playerIndex].tail
+    # tail = board.snakes[playerIndex].tail
 
     possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
   
@@ -222,10 +222,10 @@ def update_node_duct(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.D
 
     
 def ucb_duct(tR: int, n: int, n_a: int, c=1.0):
-  if n_a == 0:
-    return math.inf
-  else:
-    return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
+    if n_a == 0:
+        return math.inf
+    else:
+        return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
 
       
 def select_actions_duct(nodes: Tree, s: sim.BoardState):
@@ -276,7 +276,7 @@ def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
         return rs
 
 
-def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
+def mcts_duct(board: sim.BoardState, playerIndex, maxTime=150):
     tStart = time.time_ns()
     
     s = copy.deepcopy(board)
@@ -298,7 +298,7 @@ def mcts_duct(board: sim.BoardState, playerIndex: int, maxTime=150):
                 bestMove = m
                 bestMoveReward = r
 
-    print("Nodes Visited:", len(nodes))
+    print("DUCT Nodes Visited:", len(nodes))
     return bestMove
 
     
@@ -313,6 +313,14 @@ class StateSUCT:
 
     def __hash__(self):
         return 0 # TODO: change this
+
+    def __eq__(self, other):
+        return (
+                (self.state == other.state) and
+                (self.moves == other.moves) and
+                (self.turn == other.turn) and
+                (self.turnOrder == other.turnOrder)
+        )
 
     def step(self, move: sim.Direction):
         self.moves[self.current_turn_player()] = move
@@ -350,7 +358,7 @@ def get_unselected_actions(nodes: TreeSUCT, s: StateSUCT):
         sNew = apply_action_suct(s, a)
 
         if sNew not in nodes:
-            possible_actions.append(sNew)
+            possible_actions.append(a)
         
     return possible_actions
 
@@ -358,27 +366,37 @@ def get_unselected_actions(nodes: TreeSUCT, s: StateSUCT):
 def add_node_suct(nodes: TreeSUCT, s: StateSUCT):
     nodes[s] = NodeSUCT(0, {k: 0 for k in s.state.snakes})
 
+
 def update_node_suct(nodes: TreeSUCT, s: StateSUCT, a: sim.Direction, rs):
     for snake in s.state.snakes:
-        nodes[s].rewards[snake] += rs[snake]
+        # TODO: change this
+        try:
+            nodes[s].rewards[snake] += rs[snake]
+        except:
+            nodes[s].rewards[snake] -= 1.0
     nodes[s].visitCount += 1
+
 
 def ucb_suct(r, n, N, c=1.0):
     if n == 0:
         return math.inf
-        
     return (r / n) + c * math.sqrt(math.log(N) / n)
+
 
 def select_action_suct(nodes: TreeSUCT, s: StateSUCT):
     possible_actions = get_safe_actions(s.state, s.current_turn_player())
-    if possible_actions == []:
+    if not possible_actions:
         return None
         
-    bestAction = possible_actions[0]
+    bestAction = sim.UP
     bestActionUCB = -math.inf
     for a in possible_actions:
         sNew = apply_action_suct(s, a)
-        r = nodes[sNew].rewards[s.current_turn_player()]
+        #TODO: change this
+        try:
+            r = nodes[sNew].rewards[s.current_turn_player()]
+        except:
+            r = -1.0
         n = nodes[sNew].visitCount
         N = nodes[s].visitCount
         ucb = ucb_suct(r, n, N)
@@ -392,8 +410,8 @@ def select_action_suct(nodes: TreeSUCT, s: StateSUCT):
 
 def mcts_iter_suct(nodes: TreeSUCT, s: StateSUCT):
     if s.winner() != -1: # if in terminal state
-        return evaluate_state(s)
-    elif s in nodes and (actions := get_safe_actions(s.state, s.current_turn_player())):
+        return evaluate_state(s.state)
+    elif s in nodes and (actions := get_unselected_actions(nodes, s)):
         a = list(actions)[rd.randrange(len(actions))]
         
         # Calculate next state
@@ -418,14 +436,13 @@ def mcts_iter_suct(nodes: TreeSUCT, s: StateSUCT):
         
 
 
-def mcts_suct(board: sim.BoardState, playerIndex: int, maxTime=150):
+def mcts_suct(board: sim.BoardState, playerIndex, maxTime=150):
     tStart = time.time_ns()
 
     boardCopy = copy.deepcopy(board)
     boardCopy.foodSpawnChance = 0
 
-    turnOrder = [k for k in boardCopy.snakes if k != playerIndex]
-    turnOrder.append(playerIndex)
+    turnOrder = [playerIndex] + [k for k in boardCopy.snakes if k != playerIndex]
     
     s = StateSUCT(boardCopy, turnOrder)
 
@@ -449,4 +466,5 @@ def mcts_suct(board: sim.BoardState, playerIndex: int, maxTime=150):
         except:
             pass
 
+    print("SUCT nodes visited:", len(nodes))
     return bestMove
