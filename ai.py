@@ -1,5 +1,4 @@
 import copy
-import itertools
 import math
 import random as rd
 import time
@@ -8,6 +7,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Set
 
 import simulator as sim
+
 
 # Returns possible_moves without any moves which result in the snake entering out of bounds
 def avoid_oob(board: sim.BoardState, possibleMoves: List[sim.Direction], head: sim.Position):
@@ -19,6 +19,7 @@ def avoid_oob(board: sim.BoardState, possibleMoves: List[sim.Direction], head: s
 
     return newPossibleMoves
 
+
 def avoid_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
     newPossibleMoves = set()
     for move in possibleMoves:
@@ -28,32 +29,33 @@ def avoid_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head:
                 break
         else:
             newPossibleMoves.add(move)
-  
+
     return newPossibleMoves
+
 
 def avoid_oob_and_snakes(board: sim.BoardState, possibleMoves: Set[sim.Direction], head: sim.Position):
     newPossibleMoves = set()
     for move in possibleMoves:
         newPos = sim.Position(head.x + move.x, head.y + move.y)
         if (board.is_in_bounds(newPos) and
-            not any(map(lambda s: newPos == s.head or newPos in s.tail[:-1], board.snakes.values()))):
-            
+                not any(map(lambda s: newPos == s.head or newPos in s.tail[:-1], board.snakes.values()))):
             newPossibleMoves.add(move)
 
     return newPossibleMoves
 
-def find_closest_food(board: sim.BoardState, pos: sim.Position): 
+
+def find_closest_food(board: sim.BoardState, pos: sim.Position):
     minDistance = math.inf
     closestFood = None
-    
+
     for food in board.food:
         dist = sim.distance(pos, food)
         if dist < minDistance:
             closestFood = food
             minDistance = dist
-            
+
     return closestFood
-        
+
 
 def safe_player(board: sim.BoardState, playerId):
     possibleMoves = set(sim.MOVES)
@@ -62,22 +64,22 @@ def safe_player(board: sim.BoardState, playerId):
     # tail = board.snakes[playerIndex].tail
 
     possibleMoves = avoid_oob_and_snakes(board, possibleMoves, head)
-  
+
     if possibleMoves:
         return list(possibleMoves)[rd.randrange(len(possibleMoves))]
     else:
-        return sim.UP # default to up if all moves are bad
+        return sim.UP  # default to up if all moves are bad
 
 
 def chase_food(board: sim.BoardState, playerId):
     head = board.snakes[playerId].head
-    
+
     closestFood = find_closest_food(board, head)
     if closestFood == None:
         return safe_player(board, playerId)
- 
+
     possibleMoves = avoid_oob_and_snakes(board, set(sim.MOVES), head)
-        
+
     bestMove = sim.UP
     bestMoveDistance = math.inf
     for move in possibleMoves:
@@ -86,9 +88,10 @@ def chase_food(board: sim.BoardState, playerId):
         if dist < bestMoveDistance:
             bestMove = move
             bestMoveDistance = dist
-                
+
     return bestMove
-    
+
+
 def random_choice(xs, ps):
     if len(xs) != len(ps):
         return None
@@ -97,39 +100,42 @@ def random_choice(xs, ps):
     for i in range(len(xs)):
         if total < ps[i]:
             return xs[i]
-        
+
         total += ps[i]
 
     return xs[-1]
-    
 
-def simple_player(board: sim.BoardState, playerId: int):
+
+def simple_player(board: sim.BoardState, playerId):
     STRATEGIES = [safe_player, chase_food]
     PROBABILITIES = [0.10, 0.90]
 
     return random_choice(STRATEGIES, PROBABILITIES)(board, playerId)
-    
 
-#------------------------#
+
+# ------------------------#
 #          MCTS          #
-#------------------------#
+# ------------------------#
 
 @dataclass
 class RewardInfo:
     visitCount: int
     totalReward: int
 
+
 @dataclass
 class Node:
     visitCount: int
     rewardInfo: Dict[object, Dict[sim.Direction, RewardInfo]]
 
+
 Tree = Dict[sim.BoardState, Node]
+
 
 def get_reward(winner, snake):
     if snake == winner:
         return 1.0
-    elif winner == None:
+    elif winner is None:
         return 0.0
     else:
         return -1.0
@@ -142,29 +148,29 @@ def evaluate_state(s: sim.BoardState):
 
 def get_safe_actions(s: sim.BoardState, k):
     return avoid_oob_and_snakes(s, sim.MOVES, s.snakes[k].head)
-    
+
 
 def get_all_matrices(possibleMoves: Dict[object, List[sim.Direction]]):
-    pmoves = copy.deepcopy(possibleMoves)
-    
-    if not pmoves:
+    p_moves = copy.deepcopy(possibleMoves)
+
+    if not p_moves:
         return {}
-    elif len(pmoves) == 1:
-        return [{k: m} for k in pmoves for m in pmoves[k]]
+    elif len(p_moves) == 1:
+        return [{k: m} for k in p_moves for m in p_moves[k]]
     else:
-        (k, ms) = pmoves.popitem()
-        rest = get_all_matrices(pmoves)
-        
+        (k, ms) = p_moves.popitem()
+        rest = get_all_matrices(p_moves)
+
         result = []
         for d in rest:
             for m in ms:
                 newDict = copy.deepcopy(d)
                 newDict[k] = m
                 result.append(newDict)
-            
+
         return result
-        
-        
+
+
 def get_unselected_action_matrices(nodes: Tree, s: sim.BoardState):
     possibleActions = {}
     for k in s.snakes:
@@ -173,7 +179,7 @@ def get_unselected_action_matrices(nodes: Tree, s: sim.BoardState):
             possibleActions[k] = actions
         else:
             possibleActions[k] = [sim.UP]
-            
+
     return get_all_matrices(possibleActions)
 
 
@@ -220,14 +226,14 @@ def update_node_duct(nodes: Tree, s: sim.BoardState, actions: Dict[object, sim.D
         nodes[s].rewardInfo[k][a].visitCount += 1
     nodes[s].visitCount += 1
 
-    
+
 def ucb_duct(tR: int, n: int, n_a: int, c=1.0):
     if n_a == 0:
         return math.inf
     else:
         return (tR / n_a) + c * math.sqrt(math.log(n) / n_a)
 
-      
+
 def select_actions_duct(nodes: Tree, s: sim.BoardState):
     result = {}
     for k in s.snakes:
@@ -238,19 +244,19 @@ def select_actions_duct(nodes: Tree, s: sim.BoardState):
             tR = rewardInfo.totalReward
             nA = rewardInfo.visitCount
             n = nodes[s].visitCount
-            
+
             ucb = ucb_duct(tR, n, nA)
             if ucb > bestActionUCB:
                 bestAction = a
                 bestActionUCB = ucb
-        
+
         result[k] = bestAction
-        
+
     return result
 
-    
+
 def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
-    if s.winner() != -1: # if in a terminal state
+    if s.winner() != -1:  # if in a terminal state
         return evaluate_state(s)
     elif s in nodes and (actionMats := get_unselected_action_matrices(nodes, s)):
         a = actionMats[rd.randrange(len(actionMats))]
@@ -268,7 +274,7 @@ def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
         update_node_duct(nodes, s, a, rs)
         return rs
 
-    else: # selection phase
+    else:  # selection phase
         actions = select_actions_duct(nodes, s)
         sNew = apply_action_duct(s, actions)
         rs = mcts_duct_iter(nodes, sNew)
@@ -278,7 +284,7 @@ def mcts_duct_iter(nodes: Tree, s: sim.BoardState):
 
 def mcts_duct(board: sim.BoardState, playerIndex, maxTime=150):
     tStart = time.time_ns()
-    
+
     s = copy.deepcopy(board)
     s.foodSpawnChance = 0
 
@@ -301,8 +307,8 @@ def mcts_duct(board: sim.BoardState, playerIndex, maxTime=150):
     print("DUCT Nodes Visited:", len(nodes))
     return bestMove
 
-    
-#----- SUCT -----#
+
+# ----- SUCT -----#
 
 class StateSUCT:
     def __init__(self, state: sim.BoardState, turnOrder: List[object]):
@@ -312,7 +318,7 @@ class StateSUCT:
         self.turnOrder = turnOrder
 
     def __hash__(self):
-        return 0 # TODO: change this
+        return 0  # TODO: change this
 
     def __eq__(self, other):
         return (
@@ -342,6 +348,7 @@ class NodeSUCT:
     visitCount: int
     rewards: Dict[object, float]
 
+
 TreeSUCT = Dict[StateSUCT, NodeSUCT]
 
 
@@ -359,7 +366,7 @@ def get_unselected_actions(nodes: TreeSUCT, s: StateSUCT):
 
         if sNew not in nodes:
             possible_actions.append(a)
-        
+
     return possible_actions
 
 
@@ -387,12 +394,12 @@ def select_action_suct(nodes: TreeSUCT, s: StateSUCT):
     possible_actions = get_safe_actions(s.state, s.current_turn_player())
     if not possible_actions:
         return None
-        
+
     bestAction = sim.UP
     bestActionUCB = -math.inf
     for a in possible_actions:
         sNew = apply_action_suct(s, a)
-        #TODO: change this
+        # TODO: change this
         try:
             r = nodes[sNew].rewards[s.current_turn_player()]
         except:
@@ -409,31 +416,30 @@ def select_action_suct(nodes: TreeSUCT, s: StateSUCT):
 
 
 def mcts_iter_suct(nodes: TreeSUCT, s: StateSUCT):
-    if s.winner() != -1: # if in terminal state
+    if s.winner() != -1:  # if in terminal state
         return evaluate_state(s.state)
     elif s in nodes and (actions := get_unselected_actions(nodes, s)):
         a = list(actions)[rd.randrange(len(actions))]
-        
+
         # Calculate next state
         sNew = apply_action_suct(s, a)
-        
+
         # Add new state to the tree
         add_node_suct(nodes, sNew)
-        
+
         rs = mcts_playout(sNew.state)
-        
+
         nodes[sNew].visitCount += 1
-        
+
         update_node_suct(nodes, s, a, rs)
         return rs
-        
-    else: # selection phase
+
+    else:  # selection phase
         a = select_action_suct(nodes, s)
         sNew = apply_action_suct(s, a)
         rs = mcts_iter_suct(nodes, sNew)
         update_node_suct(nodes, s, a, rs)
         return rs
-        
 
 
 def mcts_suct(board: sim.BoardState, playerIndex, maxTime=150):
@@ -443,7 +449,7 @@ def mcts_suct(board: sim.BoardState, playerIndex, maxTime=150):
     boardCopy.foodSpawnChance = 0
 
     turnOrder = [playerIndex] + [k for k in boardCopy.snakes if k != playerIndex]
-    
+
     s = StateSUCT(boardCopy, turnOrder)
 
     nodes = {}
@@ -462,7 +468,7 @@ def mcts_suct(board: sim.BoardState, playerIndex, maxTime=150):
             if r > bestMoveReward:
                 bestMove = a
                 bestMoveReward = r
-                
+
         except:
             pass
 
